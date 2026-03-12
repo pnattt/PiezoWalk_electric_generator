@@ -1,64 +1,110 @@
-main.uno
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Constants
-const int piezoPin = A0; // Adjust the pin number as needed
-const int threshold = 100; // Adjust the threshold voltage
+// Pin definitions
+const int piezoPin = A0;   
+const int ledPin = 8;      
 
-// Required variables
-int prev = 0, stepCount = 0;
+// Threshold for detecting a step
+const int threshold = 200;  
+
+// Variables
+int stepCount = 0;
+int prevState = 0;
+
+// Timing control
 unsigned long previousMillis = 0;
-const long interval = 1000; // Debounce interval in milliseconds
+const long interval = 200;   // debounce time (200ms)
 
-// Variables for calculating voltage
-float v, vout, vin = 7.0; // Assuming a 5V reference voltage
+// Voltage variables
+float vin = 5.0;
+float vout = 0;
+float actualVoltage = 0;
 
-// Initialize the LCD, set the LCD address to 0x27 for a 16 chars and 2 line display
+// Initialize LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void setup() {
+
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+
+  Serial.begin(9600);
+
   lcd.init();
   lcd.backlight();
-  lcd.print("Footstep Enegy");
-  lcd.setCursor(3, 1);
+
+  // Startup screen
+  lcd.setCursor(4,0);
+  lcd.print("Piezowalk");
+
+  lcd.setCursor(3,1);
   lcd.print("Generator");
-  delay(1500);
-  lcd.clear(); 
-  lcd.setCursor(0, 0);
+
+  delay(2000);
+  lcd.clear();
+
+  // Display layout
+  lcd.setCursor(0,0);
   lcd.print("Steps: 0");
-  lcd.setCursor(0, 1);
+
+  lcd.setCursor(0,1);
   lcd.print("Voltage: 0V");
+
+  Serial.println("Piezowalk Generator Started...");
 }
 
 void loop() {
+
   unsigned long currentMillis = millis();
 
   int sensorValue = analogRead(piezoPin);
-  // Immediate LED feedback based on pressure
-    if (sensorValue > threshold) {
-    digitalWrite(ledPin, HIGH); // Turn on LED if pressure exceeds threshold
-  } else {
-    digitalWrite(ledPin, LOW);  // Turn off LED otherwise
+
+  // Print for debugging
+  Serial.print("Sensor: ");
+  Serial.println(sensorValue);
+
+  // LED indication
+  if(sensorValue > threshold)
+  {
+    digitalWrite(ledPin, HIGH);
   }
-  // Debounce the sensor reading
-  if (currentMillis - previousMillis >= interval) {
+  else
+  {
+    digitalWrite(ledPin, LOW);
+  }
+
+  // Step detection
+  if(currentMillis - previousMillis >= interval)
+  {
     previousMillis = currentMillis;
 
-    if (sensorValue > threshold && prev == 0) {
+    if(sensorValue > threshold && prevState == 0)
+    {
       stepCount++;
-      lcd.setCursor(7, 0);
+
+      // Calculate voltage
+      vout = (sensorValue * vin) / 1023.0;
+      actualVoltage = vout * 11.0;   // for 100k/10k divider
+
+      // Update LCD
+      lcd.setCursor(7,0);
+      lcd.print("    ");
+      lcd.setCursor(7,0);
       lcd.print(stepCount);
 
-      // Calculate voltage (adjust the formula based on your circuit and calibration)
-      vout = (sensorValue * vin) / 1023.0;
-      lcd.setCursor(9, 1);
-      lcd.print(vout, 1); // Display voltage with one decimal place
+      lcd.setCursor(9,1);
+      lcd.print("     ");
+      lcd.setCursor(9,1);
+      lcd.print(actualVoltage,1);
       lcd.print("V");
 
-      prev = 1;
-    } else {
-      prev = 0;
+      prevState = 1;
+    }
+
+    if(sensorValue < threshold)
+    {
+      prevState = 0;
     }
   }
 }
